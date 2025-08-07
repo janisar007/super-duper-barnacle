@@ -1,0 +1,48 @@
+name: Environment Configuration Test
+
+on:
+  schedule:
+    - cron: '*/14 * * * *'
+  workflow_dispatch:
+
+jobs:
+  setup-and-pr:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Create env check script
+      run: |
+        echo "Creating environment check script..."
+        echo "#!/bin/bash" > check_env.sh
+        echo "if [ -z \"\$DB_HOST\" ]; then" >> check_env.sh
+        echo "  echo \"Error: DB_HOST environment variable is required\"" >> check_env.sh
+        echo "  exit 1" >> check_env.sh
+        echo "fi" >> check_env.sh
+        echo "echo \"Database host: \$DB_HOST\"" >> check_env.sh
+        chmod +x check_env.sh
+        
+    - name: Create PR
+      run: |
+        git checkout -b env-test-$(date +%s)
+        git add .
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
+        git commit -m "Add environment check script"
+        git push origin HEAD
+        gh pr create --title "Env test PR" --body "Automated environment test PR" --head $(git branch --show-current)
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  test-env:
+    needs: setup-and-pr
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - run: |
+        # Randomly set the environment variable
+        if [ $((RANDOM % 2)) -eq 0 ]; then
+          DB_HOST="localhost" ./check_env.sh
+        else
+          ./check_env.sh
+        fi
