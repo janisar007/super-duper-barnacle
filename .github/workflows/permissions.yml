@@ -1,0 +1,38 @@
+name: File Permission Issues
+
+on:
+  schedule:
+    - cron: '*/12 * * * *'
+  workflow_dispatch:
+
+jobs:
+  setup-and-pr:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Create restricted script
+      run: |
+        echo "Creating restricted script..."
+        echo "#!/bin/bash" > restricted.sh
+        echo "echo 'This script needs permissions'" >> restricted.sh
+        chmod 000 restricted.sh  # No permissions
+        
+    - name: Create PR
+      run: |
+        git checkout -b permission-test-$(date +%s)
+        git add .
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
+        git commit -m "Add restricted script"
+        git push origin HEAD
+        gh pr create --title "Permission test PR" --body "Automated permission test PR" --head $(git branch --show-current)
+      env:
+        GITHUB_TOKEN: ${{ secrets.PAT }}
+
+  test-permissions:
+    needs: setup-and-pr
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - run: ./restricted.sh
